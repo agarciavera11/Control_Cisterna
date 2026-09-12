@@ -8,6 +8,12 @@ export const DEFAULT_CONFIG = {
   tankCapacityLiters: 10000,
   lowLevelThreshold: 25,
   criticalLevelThreshold: 12,
+  // Alertas: la notificación nativa funciona en el navegador del celular.
+  // El correo se entrega a través de un webhook (Make, Zapier o Cloud Function).
+  deviceNotificationsEnabled: false,
+  alertEmailEnabled: false,
+  alertEmail: '',
+  alertEmailWebhookUrl: '',
   waterRatePerM3: 0.72,
   monthlyGoalLiters: 18000,
   demoCapacityLiters: 50,

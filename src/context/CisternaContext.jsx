@@ -2,6 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { mockDataSource, DEFAULT_CONFIG, generateMockHistory } from '../services/mockDataSource'
 import { loadLive as loadLiveFirebase, clearCache as clearLiveCache } from '../services/firebaseDataSource'
+import { notifyLevelIfNeeded } from '../services/notificationService'
 import { clamp, deriveMetrics, percentage } from '../utils/calculations'
 
 const CisternaContext = createContext(null)
@@ -24,6 +25,13 @@ export function CisternaProvider({ children }) {
   const runtimeRef = useRef(runtime)
   useEffect(() => { configRef.current = metricsConfig }, [metricsConfig])
   useEffect(() => { runtimeRef.current = runtime }, [runtime])
+
+  // El servicio conserva un "latch" en localStorage: bajo/crítico se entrega
+  // una vez y se rearma únicamente al recuperar un nivel superior al umbral bajo.
+  useEffect(() => {
+    const canTrustLiveReading = config.dataMode !== 'live' || runtime.demoTank || runtime.connected
+    if (canTrustLiveReading) notifyLevelIfNeeded(metrics.currentPercent, config)
+  }, [config, metrics.currentPercent, runtime.connected, runtime.demoTank])
 
   useEffect(() => {
     mockDataSource.save({ config, history, runtime })

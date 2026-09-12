@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { AlertTriangle, Check, Database, DollarSign, Droplets, RadioTower, RefreshCw, Ruler, RotateCcw, Save, Wifi, WifiOff } from 'lucide-react'
+import { AlertTriangle, Bell, Check, Database, DollarSign, Droplets, Mail, RadioTower, RefreshCw, Ruler, RotateCcw, Save, Wifi, WifiOff } from 'lucide-react'
 import { useCisterna } from '../context/CisternaContext'
 import { formatLiters, relativeTime } from '../utils/formatters'
+import { deviceNotificationPermission, requestDeviceNotificationPermission } from '../services/notificationService'
 
 function Field({ label, hint, suffix, children }) {
   return <label className="block"><span className="text-sm font-medium text-ink">{label}</span>{hint && <span className="ml-2 text-[11px] text-muted">{hint}</span>}<div className="field mt-2">{children}{suffix && <span className="shrink-0 text-xs text-muted">{suffix}</span>}</div></label>
@@ -14,11 +15,22 @@ function SettingsCard({ icon: Icon, eyebrow, title, description, children }) {
 export default function Settings() {
   const { config, runtime, setConfig, updateRuntime, resetAll, liveStatus, refreshLive } = useCisterna()
   const [saved, setSaved] = useState(false)
+  const [notificationPermission, setNotificationPermission] = useState(() => deviceNotificationPermission())
   const live = config.dataMode === 'live'
   const numberUpdate = (key) => (event) => setConfig({ [key]: Math.max(0, Number(event.target.value)) })
   const dimensionsCapacity = config.tankLengthMeters * config.tankWidthMeters * config.tankHeightMeters * 1000
   const saveFeedback = () => { setSaved(true); window.setTimeout(() => setSaved(false), 2200) }
   const applyDimensions = () => setConfig({ tankCapacityLiters: Math.round(dimensionsCapacity) })
+
+  const toggleDeviceNotifications = async () => {
+    if (config.deviceNotificationsEnabled) {
+      setConfig({ deviceNotificationsEnabled: false })
+      return
+    }
+    const permission = await requestDeviceNotificationPermission()
+    setNotificationPermission(permission)
+    setConfig({ deviceNotificationsEnabled: permission === 'granted' })
+  }
 
   return (
     <div className="page-shell">
@@ -79,9 +91,15 @@ export default function Settings() {
         </SettingsCard>
 
         <div className="grid gap-5 xl:grid-cols-2">
-          <SettingsCard icon={AlertTriangle} eyebrow="Avisos" title="Umbrales de nivel" description="Recibirás una alerta visual al alcanzar estos valores.">
+          <SettingsCard icon={AlertTriangle} eyebrow="Avisos" title="Umbrales de nivel" description="Se envía una alerta al entrar en nivel bajo o crítico; no se repite hasta que el tanque se recupere.">
             <div className="grid gap-5 sm:grid-cols-2"><Field label="Nivel bajo" suffix="%"><input type="number" min="1" max="99" value={config.lowLevelThreshold} onChange={numberUpdate('lowLevelThreshold')} /></Field><Field label="Nivel crítico" suffix="%"><input type="number" min="0" max="98" value={config.criticalLevelThreshold} onChange={numberUpdate('criticalLevelThreshold')} /></Field></div>
             {config.criticalLevelThreshold >= config.lowLevelThreshold && <div className="mt-4 flex gap-2 rounded-2xl bg-amber-50 p-4 text-xs leading-5 text-amber-900"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> El nivel crítico debe ser menor que el nivel bajo.</div>}
+            <div className="mt-6 space-y-4 border-t border-black/[.06] pt-5">
+              <div className="flex items-center justify-between gap-4"><div className="flex gap-3"><Bell className="mt-0.5 h-5 w-5 shrink-0 text-aqua-700" /><div><p className="text-sm font-semibold">Notificación en el dispositivo</p><p className="mt-1 text-xs leading-5 text-muted">Actívala desde el navegador del celular para recibir el aviso nativo.</p></div></div><button role="switch" aria-label="Activar notificaciones en el dispositivo" aria-checked={config.deviceNotificationsEnabled} onClick={toggleDeviceNotifications} className={`switch ${config.deviceNotificationsEnabled ? 'switch-on' : ''}`}><span /></button></div>
+              <p className="text-[11px] text-muted">Permiso: {notificationPermission === 'granted' ? 'concedido' : notificationPermission === 'denied' ? 'denegado por el navegador' : notificationPermission === 'unsupported' ? 'no compatible con este navegador' : 'pendiente'}</p>
+              <div className="flex items-center justify-between gap-4"><div className="flex gap-3"><Mail className="mt-0.5 h-5 w-5 shrink-0 text-aqua-700" /><div><p className="text-sm font-semibold">Aviso por correo</p><p className="mt-1 text-xs leading-5 text-muted">Envía el evento a tu automatización de correo.</p></div></div><button role="switch" aria-label="Activar avisos por correo" aria-checked={config.alertEmailEnabled} onClick={() => setConfig({ alertEmailEnabled: !config.alertEmailEnabled })} className={`switch ${config.alertEmailEnabled ? 'switch-on' : ''}`}><span /></button></div>
+              {config.alertEmailEnabled && <div className="grid gap-5"><Field label="Correo destinatario"><input type="email" value={config.alertEmail} onChange={(event) => setConfig({ alertEmail: event.target.value.trim() })} placeholder="alertas@ejemplo.com" /></Field><Field label="Webhook de correo" hint="Make, Zapier o Cloud Function"><input type="url" value={config.alertEmailWebhookUrl} onChange={(event) => setConfig({ alertEmailWebhookUrl: event.target.value.trim() })} placeholder="https://..." /></Field><p className="-mt-2 text-[11px] leading-5 text-muted">El webhook recibe el destinatario, tanque, nivel, umbrales y severidad. Así las credenciales de correo no quedan expuestas en la app.</p></div>}
+            </div>
           </SettingsCard>
 
           <SettingsCard icon={DollarSign} eyebrow="Estimaciones" title="Tarifa y meta" description="Se utilizan para calcular costos y ahorro, no una factura real.">
